@@ -1,0 +1,4 @@
+node_modules/
+.rn-new-arch/
+*.log
+.DS_Store

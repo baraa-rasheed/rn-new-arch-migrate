@@ -1,0 +1,13 @@
+{
+  "name": "rn-new-arch-migrate",
+  "version": "0.2.0",
+  "description": "One-command skill + CLI that migrates any React Native app (including bare RN CLI) to Expo SDK 58 with prebuilt iOS and Android projects.",
+  "type": "module",
+  "bin": { "rn-new-arch-migrate": "scripts/cli.mjs", "rn-to-expo-58": "scripts/cli.mjs" },
+  "files": ["scripts", "skills", "stages", "references", "schemas", "templates", "README.md", "LICENSE"],
+  "engines": { "node": ">=22.13" },
+  "keywords": ["react-native", "expo", "expo-sdk-58", "migration", "prebuild", "agent-skill"],
+  "author": "Baraa Rasheed",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/baraa-rasheed/rn-new-arch-migrate.git" }
+}
