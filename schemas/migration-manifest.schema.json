@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RN → Expo 58 migration manifest",
+  "type": "object",
+  "required": ["version", "createdAt", "projectType", "packageJson", "native", "dependencies"],
+  "properties": {
+    "version": { "const": 1 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "projectType": { "enum": ["bare-rn-cli", "expo-bare", "expo-managed"] },
+    "packageJson": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }, "main": { "type": ["string", "null"] },
+        "scripts": { "type": "object" }, "hash": { "type": "string" }
+      }
+    },
+    "versions": { "type": "object", "properties": { "reactNative": { "type": ["string", "null"] }, "react": { "type": ["string", "null"] }, "expo": { "type": ["string", "null"] } } },
+    "configs": { "type": "array", "items": { "type": "string" } },
+    "native": {
+      "type": "object",
+      "properties": {
+        "android": { "type": ["object", "null"], "properties": { "applicationId": { "type": ["string", "null"] }, "permissions": { "type": "array", "items": { "type": "string" } }, "customFiles": { "type": "array", "items": { "type": "string" } } } },
+        "ios": { "type": ["object", "null"], "properties": { "bundleIdentifier": { "type": ["string", "null"] }, "infoPlistKeys": { "type": "array", "items": { "type": "string" } }, "customFiles": { "type": "array", "items": { "type": "string" } } } }
+      }
+    },
+    "localModules": { "type": "array", "items": { "type": "string" } },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "object", "required": ["name", "from"], "properties": { "name": { "type": "string" }, "from": { "type": "string" }, "status": { "enum": ["ok", "replace", "remove", "unknown"] }, "replacement": { "type": ["string", "null"] }, "note": { "type": ["string", "null"] } } }
+    }
+  }
+}
