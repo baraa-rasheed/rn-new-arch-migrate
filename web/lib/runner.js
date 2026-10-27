@@ -39,21 +39,23 @@ export function runScript(script, cwd, { env = {}, onData = () => {} } = {}) {
   });
 }
 
-export function keyEnv(provider, apiKey) {
+export function keyEnv(provider, apiKey, baseUrl, model) {
   if (!apiKey) return {};
-  if (provider === 'anthropic') return { ANTHROPIC_API_KEY: apiKey };
-  if (provider === 'compatible') return { OPENAI_API_KEY: apiKey, OPENAI_BASE_URL: process.env.OPENAI_BASE_URL || '' };
-  return { OPENAI_API_KEY: apiKey };
+  const m = model ? { RN_MIGRATE_AI_MODEL: model } : {};
+  if (provider === 'anthropic') return { ANTHROPIC_API_KEY: apiKey, ...m };
+  if (provider === 'xai') return { OPENAI_API_KEY: apiKey, OPENAI_BASE_URL: 'https://api.x.ai/v1', RN_MIGRATE_AI_MODEL: model || 'grok-4' };
+  if (provider === 'compatible') return { OPENAI_API_KEY: apiKey, OPENAI_BASE_URL: baseUrl || process.env.OPENAI_BASE_URL || '', ...m };
+  return { OPENAI_API_KEY: apiKey, ...m };
 }
 
-export function startJob(cwd, { provider, apiKey, skipGenerate, profile: name, reactDoctor }) {
+export function startJob(cwd, { provider, apiKey, baseUrl, model, skipGenerate, profile: name, reactDoctor }) {
   const profile = resolveProfile(name, { reactDoctor, skipGenerate });
   const id = crypto.randomUUID();
   const job = { id, cwd, log: '', profile: profile.id, stages: stagesFor(profile).map((s) => ({ ...s, status: 'pending' })), done: false, ok: null };
   jobs.set(id, job);
   (async () => {
     // Upgrade-only never receives the key.
-    const env = { ...(profile.ai ? keyEnv(provider, apiKey) : {}), ...profileEnv(profile) };
+    const env = { ...(profile.ai ? keyEnv(provider, apiKey, baseUrl, model) : {}), ...profileEnv(profile) };
     for (const st of job.stages) {
       st.status = 'running';
       const code = await runScript(st.script, cwd, { env, onData: (d) => { job.log = (job.log + redact(d, apiKey)).slice(-200000); } });

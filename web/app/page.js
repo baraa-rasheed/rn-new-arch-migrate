@@ -5,7 +5,7 @@ const box = { background: '#151924', border: '1px solid #262c3b', borderRadius: 
 const input = { width: '100%', padding: 10, borderRadius: 8, border: '1px solid #333a4d', background: '#0b0d12', color: '#e6e8ee', boxSizing: 'border-box' };
 const btn = (on = true) => ({ padding: '10px 16px', borderRadius: 8, border: 0, background: on ? '#4f7cff' : '#333a4d', color: '#fff', cursor: on ? 'pointer' : 'not-allowed', marginRight: 8 });
 const PROFILES = [
-  { id: 'upgrade', label: 'Upgrade only', desc: 'SDK 58 / New Architecture upgrade. No quality fixes, AI key never used.' },
+  { id: 'upgrade', label: 'Upgrade only', desc: 'Expo SDK / New Architecture upgrade. Deterministic; no AI token needed.' },
   { id: 'quality', label: 'Upgrade + quality', desc: 'Upgrade + eslint/expo auto-fixes. AI only on leftover fixability:ai findings.' },
   { id: 'full', label: 'Full refactor', desc: 'Upgrade + quality + perf/bundle refactors (knip --fix, AI batches on leftovers).' },
 ];
@@ -47,12 +47,23 @@ function Findings({ data }) {
   );
 }
 
+const PROVIDERS = [
+  { id: 'anthropic', label: 'Anthropic — Claude', ph: 'sk-ant-…' },
+  { id: 'xai', label: 'xAI — Grok', ph: 'xai-…' },
+  { id: 'openai', label: 'OpenAI', ph: 'sk-…' },
+  { id: 'compatible', label: 'OpenAI-compatible (custom base URL)', ph: 'API key' },
+];
+const lbl = { display: 'block', fontWeight: 600, margin: '14px 0 6px' };
+const hint = { color: '#9aa3b8', fontSize: 13, margin: '4px 0 0' };
+
 const ICON = { pending: '○', running: '◐', done: '●', failed: '✕' };
 
 export default function Home() {
   const [projectPath, setProjectPath] = useState('');
-  const [provider, setProvider] = useState('openai');
+  const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [model, setModel] = useState('');
   const [skipGenerate, setSkipGenerate] = useState(false);
   const [profile, setProfile] = useState('upgrade');
   const [reactDoctor, setReactDoctor] = useState(false);
@@ -74,7 +85,7 @@ export default function Home() {
 
   async function doRun() {
     setErr('');
-    const r = await fetch('/api/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: scan.cwd, confirm: confirmText, provider, apiKey, skipGenerate, profile, reactDoctor }) });
+    const r = await fetch('/api/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: scan.cwd, confirm: confirmText, provider, apiKey, baseUrl, model, skipGenerate, profile, reactDoctor }) });
     const j = await r.json();
     if (!r.ok) return setErr(j.error);
     setJob(j.id);
@@ -93,30 +104,41 @@ export default function Home() {
   const confirmed = confirmText.trim().toLowerCase() === 'yes';
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ marginBottom: 4 }}>React Native → Expo SDK 58</h1>
-      <p style={{ color: '#9aa3b8', marginTop: 0 }}>Local only (127.0.0.1). Your project path and API key never leave this machine; nothing is uploaded.</p>
+      <h1 style={{ marginBottom: 4 }}>Expo Upgrade Studio</h1>
+      <p style={{ color: '#9aa3b8', marginTop: 0 }}>Upgrade an Expo app or migrate a React Native app to Expo. Runs locally on 127.0.0.1; your code and token never leave this machine.</p>
 
       <section style={box}>
-        <h3>1. Project</h3>
-        <label>Absolute path to the React Native project root (folder with package.json)</label>
-        <input style={input} placeholder="/Users/you/code/my-app" value={projectPath} onChange={(e) => setProjectPath(e.target.value)} />
-        <h3 style={{ marginTop: 16 }}>AI provider key (optional)</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <select style={{ ...input, width: 220 }} value={provider} onChange={(e) => setProvider(e.target.value)}>
-            <option value="openai">OpenAI (OPENAI_API_KEY)</option>
-            <option value="anthropic">Anthropic (ANTHROPIC_API_KEY)</option>
-            <option value="compatible">OpenAI-compatible (OPENAI_API_KEY + OPENAI_BASE_URL)</option>
-          </select>
-          <input style={input} type="password" autoComplete="off" placeholder="sk-… (kept in memory, passed to local scripts as env only)" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-        </div>
-        <h3 style={{ marginTop: 16 }}>Flow profile</h3>
-        <select style={{ ...input, width: 260 }} value={profile} onChange={(e) => { setProfile(e.target.value); setScan(null); }}>
+        <h3 style={{ marginTop: 0 }}>Setup</h3>
+        <label style={lbl}>Step 1 · AI provider</label>
+        <select style={{ ...input, maxWidth: 360 }} value={provider} onChange={(e) => setProvider(e.target.value)}>
+          {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+        {provider === 'compatible' && <input style={{ ...input, marginTop: 8 }} placeholder="Base URL, e.g. https://api.example.com/v1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />}
+        <input style={{ ...input, marginTop: 8, maxWidth: 360 }} placeholder="Model (optional, provider default if empty)" value={model} onChange={(e) => setModel(e.target.value)} />
+
+        <label style={lbl}>Step 2 · API token</label>
+        <input style={input} type="password" autoComplete="off" placeholder={PROVIDERS.find((p) => p.id === provider).ph} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+        <p style={hint}>Held in memory only, passed to local scripts as an environment variable, redacted from logs. Optional for Upgrade only.</p>
+
+        <label style={lbl}>Step 3 · Project folder</label>
+        <input style={input} placeholder="/Users/you/code/my-app (folder containing package.json)" value={projectPath} onChange={(e) => setProjectPath(e.target.value)} />
+
+        <label style={lbl}>Step 4 · Profile</label>
+        <select style={{ ...input, maxWidth: 360 }} value={profile} onChange={(e) => { setProfile(e.target.value); setScan(null); }}>
           {PROFILES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
-        <p style={{ color: '#9aa3b8', margin: '6px 0' }}>{PROFILES.find((p) => p.id === profile).desc}{profile === 'upgrade' && apiKey ? ' (key ignored in this profile)' : ''}</p>
-        {profile === 'full' && <label style={{ display: 'block' }}><input type="checkbox" checked={reactDoctor} onChange={(e) => setReactDoctor(e.target.checked)} /> Opt in to react-doctor (Modified MIT license; runs with --no-telemetry)</label>}
-        <label style={{ display: 'block', marginTop: 12 }}><input type="checkbox" checked={skipGenerate} onChange={(e) => setSkipGenerate(e.target.checked)} /> Skip prebuild (stage 4)</label>
-        <div style={{ marginTop: 12 }}><button style={btn(!!projectPath && !busy)} disabled={!projectPath || busy} onClick={doScan}>{busy ? 'Scanning…' : 'Scan (read-only)'}</button></div>
+        <p style={hint}>{PROFILES.find((p) => p.id === profile).desc}{profile === 'upgrade' && apiKey ? ' (token not used in this profile)' : ''}</p>
+        {profile === 'full' && <label style={{ display: 'block', marginTop: 8 }}><input type="checkbox" checked={reactDoctor} onChange={(e) => setReactDoctor(e.target.checked)} /> Opt in to react-doctor (Modified MIT license; runs with --no-telemetry)</label>}
+        <label style={{ display: 'block', marginTop: 8 }}><input type="checkbox" checked={skipGenerate} onChange={(e) => setSkipGenerate(e.target.checked)} /> Skip prebuild (stage 4)</label>
+
+        {(() => {
+          const needKey = profile !== 'upgrade';
+          const ready = !!projectPath.trim() && (!needKey || !!apiKey) && (provider !== 'compatible' || !apiKey || !!baseUrl);
+          return (<>
+            <p style={{ ...hint, color: ready ? '#6bdc8b' : '#9aa3b8', marginTop: 14 }}>{ready ? '✓ Ready to work — click Scan to build a read-only plan.' : needKey && !apiKey ? 'Add a token (required for this profile) and a project folder to get started.' : 'Enter a project folder to get started.'}</p>
+            <button style={btn(ready && !busy)} disabled={!ready || busy} onClick={doScan}>{busy ? 'Scanning…' : 'Scan (read-only)'}</button>
+          </>);
+        })()}
       </section>
 
       {err && <pre style={{ ...box, borderColor: '#a33', whiteSpace: 'pre-wrap' }}>{err}</pre>}
@@ -132,7 +154,7 @@ export default function Home() {
             <li>Dependencies: {(scan.manifest.dependencies || []).filter((d) => d.status === 'replace').length} replaced, {(scan.manifest.dependencies || []).filter((d) => d.status === 'remove').length} removed, rest aligned via <code>expo install --fix</code></li>
             <li>Codemod edits in {(scan.manifest.breakingExpected || []).length} file(s): {(scan.manifest.breakingExpected || []).slice(0, 8).map((b) => `${b.file} (${b.fixes.join(', ')})`).join('; ') || 'none'}</li>
             <li>Native files to extract: {(scan.manifest.extractNative || []).length}</li>
-            <li>Auto-fixable findings: {scan.findings?.summary?.byFixability?.auto || 0} · AI candidates: {scan.findings?.summary?.byFixability?.ai || 0}{profile !== 'upgrade' && !apiKey ? ' (no key → listed as manual)' : ''} · manual: {scan.findings?.summary?.byFixability?.manual || 0}</li>
+            <li>Auto-fixable findings: {scan.findings?.summary?.byFixability?.auto || 0} · AI candidates: {scan.findings?.summary?.byFixability?.ai || 0}{profile !== 'upgrade' && !apiKey ? ' (no token → listed as manual)' : ''} · manual: {scan.findings?.summary?.byFixability?.manual || 0}</li>
           </ul>
           <h4>Findings: bad practices, perf, bundle bottlenecks</h4>
           <Findings data={scan.findings} />

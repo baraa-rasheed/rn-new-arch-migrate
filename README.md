@@ -1,143 +1,127 @@
-# rn-new-arch-migrate → Expo SDK 58
+# Expo Upgrade Studio
 
-Migrate **any** React Native app — Expo or bare React Native CLI, old packages included — to **Expo SDK 58** (RN 0.88, React 19.3.0, Node ≥ 22.13) with freshly prebuilt iOS and Android projects. One command:
+**Upgrade any Expo app — or migrate any React Native app to Expo — through one gated, local-first workflow.**
 
-```bash
-npx rn-new-arch-migrate
-```
+Expo Upgrade Studio (working name `expo-upgrade`) scans your project, shows you exactly what will change, waits for your explicit `yes`, then runs the upgrade, regenerates iOS and Android, verifies the result, and writes a `MIGRATION.md` report. It ships as a local web app and a CLI.
 
-That is all you run. Expo is the only target; there is no React Native CLI output mode. The goal is **zero errors** on iOS and Android.
+Source: [github.com/baraa-rasheed/rn-new-arch-migrate](https://github.com/baraa-rasheed/rn-new-arch-migrate) · npm package: `rn-new-arch-migrate`
 
-## What we reuse (not reinvent)
+---
 
-This repo is an **orchestrator**. We combine existing, well-maintained tools into one gated flow — scan → plan → you type `yes` → migrate → verify → `MIGRATION.md` — and use AI **only on the leftovers** those tools can't fix. **The migration CLIs do the work; this repo adds the flow, the merged findings, the confirmation gate, and the local UI.**
+## What it is
 
-**Expo (upgrade + native)**
-- [`npx expo install --fix`](https://docs.expo.dev/more/expo-cli/#install) — aligns every package to SDK 58
-- [`expo-doctor`](https://www.npmjs.com/package/expo-doctor) — project health checks (run in scan and verify)
-- [`install-expo-modules`](https://docs.expo.dev/bare/installing-expo-modules/) — adds Expo modules to bare RN CLI apps
-- [`expo prebuild` / CNG](https://docs.expo.dev/workflow/continuous-native-generation/) + [config plugins](https://docs.expo.dev/config-plugins/introduction/) — regenerate `ios/` and `android/`; custom native settings are re-applied by a plugin
-- [`expo/skills` → `expo-upgrade`](https://github.com/expo/skills) (MIT) — the upgrade playbook our agent skill follows
+An **orchestrator**, not a reimplementation. Proven open-source tools do the upgrade work; Expo Upgrade Studio adds:
 
-**Lint / quality**
-- [`eslint-config-expo`](https://www.npmjs.com/package/eslint-config-expo) and [`eslint-plugin-react-hooks`](https://www.npmjs.com/package/eslint-plugin-react-hooks) (including the React Compiler rules)
-- [`knip`](https://knip.dev) — unused files, exports, and dependencies
-- `tsc --noEmit` (strict) — type check in verify
+- a read-only scan that merges every tool's output into one findings list,
+- a human-readable plan with a diff summary,
+- a confirmation gate (nothing changes until you type `yes`),
+- profile-based execution with live progress,
+- optional AI applied **only** to the leftovers the tools cannot fix,
+- a final verification and `MIGRATION.md` report.
 
-**Optional**
-- [`react-doctor`](https://www.npmjs.com/package/react-doctor) — opt-in only (`--react-doctor`), always `--no-telemetry`. Its npm license is **Modified MIT**, so whether to use it is your call.
+It supports Expo projects and bare React Native CLI projects (converted to Expo with Continuous Native Generation). The current target is the latest Expo SDK supported by this release (SDK 58 / React Native 0.88 / React 19.3, Node ≥ 22.13).
 
-**Perf / bundle**
-- [React Compiler](https://react.dev/learn/react-compiler) (opt-in)
-- [Expo Atlas](https://docs.expo.dev/guides/analyzing-bundles/) / bundle visualizer — top modules by size
+## What we reuse (OSS tools)
 
-**Callstack**
-- [`callstackincubator/agent-skills`](https://github.com/callstackincubator/agent-skills) (MIT) — `upgrading-react-native` + `react-native-best-practices` skills; our agent skill points to them (`npx skills add callstackincubator/agent-skills`)
-- [`react-native-bundle-visualizer`](https://github.com/IjzerenHein/react-native-bundle-visualizer) — optional scan adapter (`RN_MIGRATE_RNBV=1`, when installed locally); community tool, not Callstack
-- Scan flags Callstack packages that need action: Re.Pack (Metro in Expo), archived `haul`, renamed `react-native-testing-library` → `@testing-library/react-native`; Reassure kept for perf regression tests
-
-**Codemods / context**
-- [`ast-grep`](https://ast-grep.github.io) is used when the project has an `sgconfig.yml`
-- AI works from findings first: it gets only the flagged snippets, never an upload of the whole repo
-
-**Codebase map for AI**
-- [Repomix](https://github.com/yamadashy/repomix) — packs/compresses the repo for AI (`--compress` keeps signatures); MCP server available (`npx repomix --mcp`)
-- Aider-style repo map idea (signatures + ranked files) as the local fallback when Repomix is unavailable
-- Why: devs on X report using these so Claude/Codex stop burning tokens grepping the tree. `scan-quality` always writes `.rn-new-arch/repo-map/` (local only, capped ~80KB, never uploaded); AI batches get a short excerpt (top files + file list) while still receiving only ±8 lines per finding. Run alone: `node scripts/lib/repo-map.mjs /path/app` (`RN_MIGRATE_NO_REPOMIX=1` forces fallback).
-
-## Quality principles we enforce during migration
-
-The upgrade also flags architecture problems so the migrated app is cleaner, not just newer. `scan-quality` reports them (tool `principles`, regex/LOC heuristics, 0 AI tokens), each with `category` (`perf` | `maintainability`), `fixability` (`ai` | `manual`), and an `expectedGain`:
-
-| Principle | Rules |
+| Area | Tools |
 |---|---|
-| Reusable components | `repeated-jsx` (same JSX block ≥3× in a file), `nested-component-definition` (component defined inside another's render) |
-| Single responsibility / separation of concerns | `god-file` (>400 LOC), `huge-component` (>250 LOC), `logic-in-ui` (fetch/storage/data transforms inside UI files) |
-| Performance | `scrollview-map`, `missing-key`, `inline-style-object`, `setstate-in-effect` |
+| Upgrade & native | [`npx expo install --fix`](https://docs.expo.dev/more/expo-cli/#install), [`expo-doctor`](https://www.npmjs.com/package/expo-doctor), [`install-expo-modules`](https://docs.expo.dev/bare/installing-expo-modules/), [`expo prebuild` / CNG](https://docs.expo.dev/workflow/continuous-native-generation/), [config plugins](https://docs.expo.dev/config-plugins/introduction/), [`expo/skills`](https://github.com/expo/skills) upgrade playbook |
+| Lint & types | [`eslint-config-expo`](https://www.npmjs.com/package/eslint-config-expo), [`eslint-plugin-react-hooks`](https://www.npmjs.com/package/eslint-plugin-react-hooks) (incl. React Compiler rules), [`knip`](https://knip.dev), `tsc --noEmit` |
+| Codemods | Built-in codemods for SDK breaking changes; [`ast-grep`](https://ast-grep.github.io) when the project has `sgconfig.yml` |
+| Perf & bundle | [React Compiler](https://react.dev/learn/react-compiler) (opt-in), [Expo Atlas](https://docs.expo.dev/guides/analyzing-bundles/), [`react-native-bundle-visualizer`](https://github.com/IjzerenHein/react-native-bundle-visualizer) (optional) |
+| AI context | [Repomix](https://github.com/yamadashy/repomix) (`--compress`), with a local signature-map fallback |
+| Optional | [`react-doctor`](https://www.npmjs.com/package/react-doctor) — opt-in only, always `--no-telemetry` (Modified MIT license) |
 
-Anything left after the run is listed in `MIGRATION.md` under **Architecture & quality principles (leftovers)**.
+Missing optional tools are recorded as `skipped`; the scan continues.
 
-## Two entry points
+## How it works (profiles)
 
-**CLI** (in your RN project root):
+**Scan (read-only, no AI) → Plan → type `yes` → Run profile → Verify → `MIGRATION.md`**
+
+| Profile | Scan | Runs | AI token |
+|---|---|---|---|
+| **Upgrade only** (`upgrade`) | expo-doctor, bundle | migrate → breaking-change fixes → generate iOS/Android → verify | Not needed |
+| **Upgrade + quality** (`quality`) | + eslint, knip, quality heuristics | + `expo install --fix`, `eslint --fix`, ast-grep → AI on leftovers | Required for AI step |
+| **Full refactor** (`full`) | + react-doctor (opt-in) | + `knip --fix`, AI on lint / perf / bundle / upgrade leftovers | Required for AI step |
+
+Stages:
+
+1. **Analyze** — inventories `package.json`, native folders, config, custom native code; writes `.rn-new-arch/migration-manifest.json` and `plan.md`.
+2. **Migrate** — converts bare RN to Expo if needed, installs the target `expo` version, aligns all packages with `npx expo install --fix`, and flags packages with no compatible version (with replacements).
+3. **Breaking-change fixes** — codemods for removed/deprecated APIs and deep imports.
+4. **Generate** — extracts custom native settings into a config plugin, then `npx expo prebuild --clean`.
+5. **Verify** — `expo-doctor`, `tsc --noEmit`, `expo export --platform all`; native builds via `RN_MIGRATE_NATIVE_BUILD=1` or EAS.
+
+All findings share one schema in `.rn-new-arch/findings.json`: `{id, tool, rule, file, line, severity, message, fixability: auto|ai|manual, category, expectedGain?}`.
+
+## Local web app
+
 ```bash
-npx rn-new-arch-migrate            # scan → plan → type "yes" → migrate → MIGRATION.md
-npx rn-new-arch-migrate --analyze-only   # just the plan (read-only)
-```
-
-**Local web UI** (from this repo):
-```bash
-cd web && npm i && npm run dev     # or, from the repo root: npm run web
+npm run web            # or: cd web && npm i && npm run dev
 # open http://127.0.0.1:3958
 ```
-Enter the project path, optionally an AI key (OpenAI, Anthropic, or any OpenAI-compatible endpoint), click **Scan**, review the plan, type **yes**, click **Confirm & migrate**, and watch each stage. When it finishes the UI shows the path to `MIGRATION.md` and its contents.
 
-### Local-only trust story
-- The web server binds to `127.0.0.1` only, and API routes reject any non-localhost `Host`.
-- The project never leaves your machine: the API routes just run the same `scripts/*.mjs` stages with `child_process` against your local path. No upload, no remote service.
-- The API key is held in memory for the job, passed to the local child processes as `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` (plus `OPENAI_BASE_URL` for compatible providers), redacted from logs, and never written to disk. It is optional; the migration itself is deterministic and needs no AI.
+1. **Open the UI.**
+2. **Choose an AI provider** — Anthropic (Claude), xAI (Grok), OpenAI, or any OpenAI-compatible endpoint (enter its base URL).
+3. **Paste your API token** (masked; optional for *Upgrade only*).
+4. **Enter the project folder path** (the folder containing `package.json`) and pick a profile.
+5. **Scan** — a read-only plan is built; your project is not modified.
+6. **Review the plan** — stages, dependency changes, codemod targets, findings, bundle hotspots.
+7. **Type `yes`** and click **Confirm & migrate** — watch each stage; the `MIGRATION.md` report is shown when done.
 
-## Confirmation gate
-Stage 1 is read-only (it writes only `.rn-new-arch/migration-manifest.json` and `.rn-new-arch/plan.md`). The CLI then prints the full plan: packages to upgrade / replace / remove, native files to extract, native settings re-applied by plugin, expected breaking-change fixes, and manual items. **Nothing touches package.json, android/, ios/, or your source until you type `yes`.** Anything else aborts. `--yes` skips the prompt for CI; agents using the skill must still show you the plan and wait for your `yes` unless you already told them to proceed. In the web UI, the Confirm button is the gate.
+## CLI
 
-## MIGRATION.md
-At the end, `MIGRATION.md` is written at the project root (copy in `.rn-new-arch/report.md`): summary, packages upgraded by `npx expo install --fix`, packages replaced/removed, breaking changes fixed (per file), native code extracted into config plugins, the manual action list, and a PASS / FAIL / PENDING verification table.
-
-**Using an AI agent?** Copy `skills/rn-to-expo-58` into your agent's skills folder and say **"upgrade my app"**. The agent follows the skill and the stage files below.
-
-## The five stages
-
-1. **Analyze → manifest.** Inventories the project before anything changes: `package.json`, `android/`, `ios/`, babel/metro/tsconfig, custom native code, local modules. Detects React Navigation < v7, deprecated `expo-permissions`, and native modules with no Expo equivalent. Writes the manifest and plan, then waits for `yes`.
-2. **Migrate to Expo 58.** Converts bare RN CLI to Expo (adds `expo@^58`, `app.json`, `babel-preset-expo`, entry file, `expo start`/`expo run:*` scripts), then runs `npx expo install expo@^58.0.0` followed by `npx expo install --fix` (the package-resolution step) so every package resolves to an SDK 58-compatible version. Packages with no Expo-compatible version are flagged with replacements (e.g. `react-native-fs` → `expo-file-system`).
-3. **Breaking-change fixes.** Codemods for SDK 58 / RN 0.88 removals: `InteractionManager` → `requestIdleCallback`, removed `Touchable` root export, `Modal.animated`, deprecated `StatusBar` props, `ImageBackground`, deep `react-native/Libraries/*` imports, replaced-package imports.
-4. **Generate iOS + Android (extract → plugin → prebuild).** Extracts custom native files to `.rn-new-arch/extracted-native/`, generates `plugins/restore-native-overlay.js` (permissions, `<meta-data>`, Gradle deps, Info.plist keys/URL schemes/background modes, Podfile pods, custom files), then regenerates both folders with `npx expo prebuild --clean`. Anything without an automated path (custom AppDelegate logic, unregistered native modules) goes on the manual list.
-5. **Verify.** Runs `expo-doctor`, `tsc --noEmit`, `expo export --platform all`, and checks `android/` + `ios/` exist. Success is only declared after a native build on both platforms (`npx expo run:ios` / `run:android`, run automatically with `RN_MIGRATE_NATIVE_BUILD=1`, or `eas build -p all`). Writes `MIGRATION.md`.
-
-## Flags
+```bash
+npx rn-new-arch-migrate                           # scan → plan → type "yes" → run → MIGRATION.md
+npx rn-new-arch-migrate --analyze-only            # plan only (read-only)
+npx rn-new-arch-migrate --cwd /path/app --profile upgrade|quality|full [--react-doctor] [--skip-generate] [--yes]
+```
 
 | Flag | Effect |
 |---|---|
-| `--analyze-only` | Stage 1 only; write the manifest and stop |
+| `--analyze-only` | Write the manifest and plan, then stop |
 | `--cwd <path>` | Project root (default: current directory) |
-| `--skip-generate` | Skip prebuild (stage 4) |
-| `--yes` | Skip the `yes` prompt (CI/agents only, after the plan was approved) |
+| `--profile <name>` | `upgrade` (default), `quality`, or `full` |
+| `--react-doctor` | Opt in to react-doctor (`full` profile) |
+| `--skip-generate` | Skip prebuild |
+| `--yes` | Skip the prompt (CI only, after the plan was approved) |
 
-## Layout
+AI keys for the CLI are read from the environment: `ANTHROPIC_API_KEY`, or `OPENAI_API_KEY` with optional `OPENAI_BASE_URL` (use `https://api.x.ai/v1` for Grok) and `RN_MIGRATE_AI_MODEL`.
 
-- `skills/rn-to-expo-58/SKILL.md`: the primary agent skill
-- `skills/rn-new-arch-migrate/SKILL.md`: redirect for the old path
-- `stages/`: per-stage agent instructions
-- `references/`: SDK 58 breaking changes, package replacements
-- `schemas/`, `templates/`: manifest schema, example, app.json, restore plugin
-- `scripts/`: the zero-dependency Node ESM CLI (`lib/print-plan.mjs`, `lib/write-report.mjs`)
-- `web/`: local-only Next.js UI that drives the same scripts
+## Trust (localhost)
 
-References: https://expo.dev/changelog/sdk-58 · https://expo.dev/blog/how-to-upgrade-to-sdk-58
+- The web server binds to `127.0.0.1`; API routes reject non-localhost `Host` headers.
+- Your project never leaves your machine — the UI runs the same local `scripts/*.mjs` stages against your path. No uploads, no hosted service.
+- The token is kept in memory for the job, passed to local child processes as an environment variable, redacted from logs, and never written to disk.
+- AI receives only the flagged snippets (±8 lines per finding, batches of 12, capped by `RN_MIGRATE_AI_MAX_BATCHES`, default 5) plus a short repo-map excerpt — never the whole repository. A fix is applied only if the code is unchanged since it was sent.
+- Nothing touches `package.json`, `ios/`, `android/`, or source files until you confirm. Native folders are backed up to `.rn-new-arch/backup/`. Commit first — git is your real undo.
 
-Commit first. The tool backs up native folders to `.rn-new-arch/backup/` and extracts custom files to `.rn-new-arch/extracted-native/` (commit that folder so the restore plugin works in CI/EAS), but git is your real undo.
+## Quality principles
+
+During the scan, the `principles` checker (heuristics, zero AI tokens) flags architecture issues so the upgraded app is cleaner, not just newer:
+
+| Principle | Rules |
+|---|---|
+| Reusable components | `repeated-jsx`, `nested-component-definition` |
+| Single responsibility / separation of concerns | `god-file` (>400 LOC), `huge-component` (>250 LOC), `logic-in-ui` |
+| Performance | `scrollview-map`, `missing-key`, `inline-style-object`, `setstate-in-effect` |
+
+Unresolved items are listed in `MIGRATION.md` under *Architecture & quality principles (leftovers)*.
+
+## Callstack skills
+
+- [`callstackincubator/agent-skills`](https://github.com/callstackincubator/agent-skills) (MIT) — `upgrading-react-native` and `react-native-best-practices`; install with `npx skills add callstackincubator/agent-skills`. The bundled agent skill references them.
+- The scan flags Callstack-ecosystem packages that need action: Re.Pack (Metro under Expo), archived `haul`, `react-native-testing-library` → `@testing-library/react-native`. Reassure is kept for perf regression tests.
+
+**Using an AI coding agent?** Copy `skills/rn-to-expo-58` into your agent's skills folder and ask it to "upgrade my app". The agent follows the same stages and confirmation gate.
+
+## Repository layout
+
+- `scripts/` — zero-dependency Node ESM CLI and stages
+- `web/` — local-only Next.js UI driving the same scripts
+- `skills/`, `stages/` — agent skill and per-stage instructions
+- `references/`, `schemas/`, `templates/` — breaking-change references, manifest schema, config-plugin templates
+
+## License
 
 MIT © Baraa Rasheed 2026
-
-## v0.5.0: orchestration and profiles
-
-_Changelog: 0.5.1 adds the local codebase map (Repomix / signature fallback). 0.5.0 also adds the "What we reuse" section and the quality-principles findings (`principles` tool, `maintainability` category). Version not bumped._
-
-This repo orchestrates existing tools and builds only what is missing. It runs `expo install --fix`, `expo-doctor`, `install-expo-modules`, eslint, `tsc`, knip and ast-grep as they are, and it wraps `expo prebuild`, react-doctor and Expo Atlas.
-
-Flow: **local scan (0 AI tokens)** → plan, diff summary, findings and expected gains → you type **yes** → the profile's stages run → optional AI on leftover `fixability: ai` findings → verify → `MIGRATION.md`.
-
-```bash
-npx rn-new-arch-migrate --cwd /path/app --profile upgrade|quality|full [--react-doctor] [--analyze-only] [--yes]
-npm run web   # http://127.0.0.1:3958 (localhost only): choose a profile, paste an optional AI key, scan, confirm, watch progress
-```
-
-| Profile | Scan tools | Stages |
-|---|---|---|
-| `upgrade` (Upgrade only) | expo-doctor, bundle | migrate → breaking → generate → verify. The AI key is never used. |
-| `quality` (Upgrade + quality) | + eslint, knip, heuristics | + quality (`expo install --fix`, `eslint --fix`, ast-grep if `sgconfig.yml`) → ai |
-| `full` (Full refactor) | + react-doctor (opt-in) | + `knip --fix` (exports/types), AI on lint/perf/bundle/upgrade findings |
-
-- Findings use one shape and are saved to `.rn-new-arch/findings.json`: `{id, tool, rule, file, line, severity, message, snippetHash, fixability: auto|ai|manual, category: upgrade|lint|perf|bundle|native|maintainability, expectedGain?}`. If an optional tool is missing, the scan records it as `skipped` and keeps going.
-- react-doctor uses a Modified MIT license, so it only runs when you pass `--react-doctor` (or tick the box in the UI) with the `full` profile. It always runs with `--no-telemetry`.
-- Bundle data comes from `.expo/atlas.jsonl` (`EXPO_ATLAS=1 npx expo export`) or from source maps in `.rn-new-arch/export`. Set `RN_MIGRATE_BUNDLE_EXPORT=1` to try a dry export during the scan.
-- AI (`scripts/lib/ai-fix.mjs`) reads `OPENAI_API_KEY` (and optionally `OPENAI_BASE_URL`) or `ANTHROPIC_API_KEY`. It sends findings in batches of 12, at most `RN_MIGRATE_AI_MAX_BATCHES` (default 5) batches, with ±8 lines of code around each finding, never the whole repo. A replacement is applied only if that code is unchanged since it was sent. Without a key, these findings are listed as manual in `MIGRATION.md`.
