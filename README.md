@@ -31,6 +31,11 @@ This repo is an **orchestrator**. We combine existing, well-maintained tools int
 - [React Compiler](https://react.dev/learn/react-compiler) (opt-in)
 - [Expo Atlas](https://docs.expo.dev/guides/analyzing-bundles/) / bundle visualizer — top modules by size
 
+**Callstack**
+- [`callstackincubator/agent-skills`](https://github.com/callstackincubator/agent-skills) (MIT) — `upgrading-react-native` + `react-native-best-practices` skills; our agent skill points to them (`npx skills add callstackincubator/agent-skills`)
+- [`react-native-bundle-visualizer`](https://github.com/IjzerenHein/react-native-bundle-visualizer) — optional scan adapter (`RN_MIGRATE_RNBV=1`, when installed locally); community tool, not Callstack
+- Scan flags Callstack packages that need action: Re.Pack (Metro in Expo), archived `haul`, renamed `react-native-testing-library` → `@testing-library/react-native`; Reassure kept for perf regression tests
+
 **Codemods / context**
 - [`ast-grep`](https://ast-grep.github.io) is used when the project has an `sgconfig.yml`
 - AI works from findings first: it gets only the flagged snippets, never an upload of the whole repo

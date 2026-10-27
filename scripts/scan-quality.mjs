@@ -175,6 +175,31 @@ function bundle(cwd, all) {
   return { status: out.source === 'none' ? 'skipped' : 'ran', reason: out.source === 'none' ? 'no Atlas/export data yet (stub)' : undefined, findings, bundle: out };
 }
 
+// Callstack adapter (optional, skips gracefully). Detects Callstack OSS in the project and, when
+// react-native-bundle-visualizer is installed locally and RN_MIGRATE_RNBV=1, runs it with --format json.
+function callstack(cwd, all) {
+  const findings = []; const used = [];
+  const bin = path.join(cwd, 'node_modules', '.bin', 'react-native-bundle-visualizer');
+  if (exists(bin) && process.env.RN_MIGRATE_RNBV === '1') {
+    const outFile = path.join(stateDir(cwd), 'rnbv.json');
+    exec(bin, ['--platform', 'ios', '--format', 'json', '--only-mapped', '--output', outFile], cwd, 600000);
+    const j = readJSON(outFile, null); const files = j?.results?.[0]?.files || {};
+    const pk = new Map();
+    for (const [k, v] of Object.entries(files)) { const m = k.match(/node_modules\/((?:@[^/]+\/)?[^/]+)/); const n = m ? m[1] : '(app code)'; pk.set(n, (pk.get(n) || 0) + (v.size || 0)); }
+    for (const [n, size] of pk) if (size > 200 * 1024 && n !== '(app code)') findings.push(makeFinding({ tool: 'rn-bundle-visualizer', rule: 'large-module', file: null, severity: 'info', message: `${n} contributes ${(size / 1024).toFixed(0)} KB (react-native-bundle-visualizer)`, snippet: n, fixability: 'manual', category: 'bundle' }));
+    if (pk.size) used.push('react-native-bundle-visualizer');
+  }
+  if (all['@callstack/repack']) { used.push('re-pack'); findings.push(makeFinding({ tool: 'callstack', rule: 'repack-bundler', file: 'package.json', severity: 'warning', message: 'Re.Pack (Callstack) detected: Expo SDK 58 uses Metro; Re.Pack config must be removed or re-validated after migration', snippet: '@callstack/repack', fixability: 'manual', category: 'bundle' })); }
+  if (all.haul) findings.push(makeFinding({ tool: 'callstack', rule: 'haul-archived', file: 'package.json', severity: 'warning', message: 'haul (Callstack) is archived; replace with Metro (Expo default)', snippet: 'haul', fixability: 'manual', category: 'upgrade' }));
+  if (all['react-native-testing-library']) findings.push(makeFinding({ tool: 'callstack', rule: 'rntl-renamed', file: 'package.json', severity: 'warning', message: 'react-native-testing-library was renamed to @testing-library/react-native (Callstack); update for React 19', snippet: 'react-native-testing-library', fixability: 'auto', category: 'upgrade' }));
+  if (all['@testing-library/react-native']) used.push('rntl');
+  if (all.reassure) used.push('reassure');
+  const skill = ['.agents/skills', '.claude/skills', '.cursor/skills'].map((d) => path.join(cwd, d, 'react-native-best-practices')).find(exists);
+  if (skill) used.push('agent-skills:react-native-best-practices');
+  if (!used.length && !findings.length) return { status: 'skipped', reason: 'no Callstack tools detected (optional: npx skills add callstackincubator/agent-skills; RN_MIGRATE_RNBV=1 with react-native-bundle-visualizer installed)', findings };
+  return { status: 'ran', reason: used.join(', ') || undefined, findings };
+}
+
 // Upgrade/native findings from the existing analyze manifest (codemods = auto).
 function fromManifest(m) {
   const f = [];
@@ -189,8 +214,8 @@ export function scanQuality(cwd, profile = profileFromEnv()) {
   const all = { ...pkg.dependencies, ...pkg.devDependencies };
   const manifest = readJSON(manifestPath(cwd), {});
   const tools = []; let findings = fromManifest(manifest); let bundleInfo = null;
-  const RUN = { 'expo-doctor': () => expoDoctor(cwd, all), eslint: () => eslint(cwd, pkg), knip: () => knip(cwd), heuristics: () => heuristics(cwd), 'react-doctor': () => reactDoctor(cwd), bundle: () => bundle(cwd, all) };
-  for (const name of ['expo-doctor', 'eslint', 'knip', 'heuristics', 'react-doctor', 'bundle']) {
+  const RUN = { 'expo-doctor': () => expoDoctor(cwd, all), eslint: () => eslint(cwd, pkg), knip: () => knip(cwd), heuristics: () => heuristics(cwd), 'react-doctor': () => reactDoctor(cwd), bundle: () => bundle(cwd, all), callstack: () => callstack(cwd, all) };
+  for (const name of ['expo-doctor', 'eslint', 'knip', 'heuristics', 'react-doctor', 'bundle', 'callstack']) {
     if (!profile.scanTools.includes(name)) { tools.push({ name, status: 'skipped', reason: name === 'react-doctor' ? 'opt-in (--react-doctor)' : `not in profile ${profile.id}` }); continue; }
     log(`scan: ${name}`);
     let r; try { r = RUN[name](); } catch (e) { r = { status: 'failed', reason: e.message.slice(0, 160), findings: [] }; }
