@@ -29,6 +29,15 @@ Our pipeline stages: **scan → map → detect → migrate → AI → verify**.
 - **Codegen** (`react-native codegen`) and the RN "Interop Layer" check: verifies TurboModule/Fabric specs. Stage: **verify**. **Wrap.**
 - **Knip** (ISC): finds unused deps/files before migrating. Stage: **scan**. Optional.
 
+## Callstack
+- **agent-skills** (`callstackincubator/agent-skills`, MIT, ~1.2k★): skills `react-native-best-practices` (perf/bundle/Hermes/TurboModules; synced to the 2026 optimization guide), `upgrading-react-native`, `react-native-brownfield-migration`, `github`, `github-actions`. Install: `npx skills add callstackincubator/agent-skills` or Claude `/plugin marketplace add callstackincubator/agent-skills`. Stage: **AI/plan**. **Integrate (reference):** our SKILL.md defers to them for upgrade pitfalls and perf fixes; scan detects a local install.
+- **React Native Testing Library** (`@testing-library/react-native`, MIT): test runner helpers. Stage: **verify**. Old name `react-native-testing-library` is flagged.
+- **Reassure** (MIT): perf regression tests on RNTL. Stage: **verify**. Detected, recommended.
+- **Re.Pack** (`@callstack/repack`, MIT): webpack/Rspack bundler. Stage: **scan**. Flagged: Expo uses Metro.
+- **Haul** (archived): legacy bundler. Flagged for removal.
+- **agent-device** (Callstack incubator): device automation for agents; candidate for verify on simulators. Not integrated yet.
+- **react-native-bundle-visualizer** is *not* Callstack (IjzerenHein, MIT); wired as optional adapter (`--format json`, `RN_MIGRATE_RNBV=1`).
+
 ## Top 5 to add next (ranked)
 1. **ast-grep**: deterministic detect and codemods for bridge → TurboModule/Fabric patterns. Highest leverage.
 2. **expo-doctor + React Native Directory API**: RN-specific scan/detect of new-arch readiness.

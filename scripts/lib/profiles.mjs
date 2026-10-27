@@ -14,19 +14,19 @@ export const PROFILES = {
     id: 'upgrade', label: 'Upgrade only',
     description: 'Expo SDK 58 / RN New Architecture upgrade. No lint/quality fixes, no AI.',
     stages: ['migrate', 'breaking', 'generate', 'verify'],
-    scanTools: ['expo-doctor', 'bundle'], ai: false,
+    scanTools: ['expo-doctor', 'bundle', 'callstack'], ai: false,
   },
   quality: {
     id: 'quality', label: 'Upgrade + quality',
     description: 'Upgrade, then auto-fix lint/quality findings with existing tools. AI only on fixability:ai findings if a key is set.',
     stages: ['migrate', 'breaking', 'generate', 'quality', 'ai', 'verify'],
-    scanTools: ['expo-doctor', 'eslint', 'knip', 'heuristics', 'bundle'], ai: true,
+    scanTools: ['expo-doctor', 'eslint', 'knip', 'heuristics', 'bundle', 'callstack'], ai: true,
   },
   full: {
     id: 'full', label: 'Full refactor',
     description: 'Upgrade + quality + perf/bundle refactors; AI batches every leftover fixability:ai finding.',
     stages: ['migrate', 'breaking', 'generate', 'quality', 'ai', 'verify'],
-    scanTools: ['expo-doctor', 'eslint', 'knip', 'heuristics', 'react-doctor', 'bundle'], ai: true, aiCategories: ['lint', 'perf', 'bundle', 'upgrade'],
+    scanTools: ['expo-doctor', 'eslint', 'knip', 'heuristics', 'react-doctor', 'bundle', 'callstack'], ai: true, aiCategories: ['lint', 'perf', 'bundle', 'upgrade'],
   },
 };
 
