@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readJSON, writeJSON, manifestPath, run, log, appendReport } from './lib/fs-utils.mjs';
+import { readJSON, writeJSON, manifestPath, run, log, appendReport, recordState } from './lib/fs-utils.mjs';
 import { ensureAppJson, rewritePackageJson, rewriteEntry, rewriteBabel, rewriteMetro } from './lib/bare-to-expo.mjs';
 import { SDK } from './lib/deps.mjs';
 
@@ -12,6 +12,7 @@ export function migrate(cwd) {
   // 1. Remove CLI-only and replaced deps from package.json; add expo.
   const pkgPath = path.join(cwd, 'package.json');
   const pkg = readJSON(pkgPath);
+  const before = { ...pkg.devDependencies, ...pkg.dependencies };
   const toInstall = new Set(['expo', 'react', 'react-native', 'babel-preset-expo', 'expo-status-bar']);
   const report = [];
   for (const d of manifest.dependencies) {
@@ -31,12 +32,14 @@ export function migrate(cwd) {
   rewriteBabel(cwd);
   rewriteMetro(cwd);
 
-  // 3. Resolve SDK 58 versions.
+  // 3. Resolve SDK 58 versions: install expo@^58 first, then let Expo pick exact versions.
   run('npm', ['install', '--legacy-peer-deps'], cwd);
-  run('npx', ['expo', 'install', `expo@${SDK.expo}`, '--', '--legacy-peer-deps'], cwd);
-  run('npx', ['expo', 'install', ...toInstall], cwd);
+  const expoOk = run('npx', ['expo', 'install', `expo@${SDK.expo}`, '--', '--legacy-peer-deps'], cwd);
+  report.push(expoOk ? `npx expo install expo@${SDK.expo} succeeded` : `npx expo install expo@${SDK.expo} FAILED`);
+  const replacements = [...toInstall].filter((n) => n !== 'expo');
+  run('npx', ['expo', 'install', ...replacements], cwd);
   const fixed = run('npx', ['expo', 'install', '--fix'], cwd);
-  report.push(fixed ? 'expo install --fix aligned all SDK packages to SDK 58' : 'expo install --fix FAILED; rerun manually');
+  report.push(fixed ? 'npx expo install --fix aligned all SDK packages to SDK 58' : 'npx expo install --fix FAILED; rerun manually');
 
   // 4. Upgrade non-SDK packages to latest, flagging failures.
   const after = readJSON(pkgPath);
@@ -46,6 +49,18 @@ export function migrate(cwd) {
     if (/^(expo|react|react-native|react-dom)$/.test(n) || n.startsWith('expo-') || n.startsWith('@expo/')) continue;
     if (!run('npx', ['expo', 'install', n], cwd)) report.push(`FLAG: could not upgrade ${n}; check RN 0.88 / New Architecture support`);
   }
+  // 5. Final pass so nothing drifted from the SDK 58 table.
+  run('npx', ['expo', 'install', '--fix'], cwd);
+  const final = readJSON(pkgPath);
+  const now = { ...final.devDependencies, ...final.dependencies };
+  const upgraded = Object.keys(now).filter((n) => before[n] && before[n] !== now[n]).map((n) => `${n}: ${before[n]} → ${now[n]}`);
+  const added = Object.keys(now).filter((n) => !before[n]).map((n) => `${n}@${now[n]}`);
+  recordState(cwd, 'migrate', {
+    upgraded, added, resolution: { expo: expoOk, fix: fixed, check },
+    replaced: manifest.dependencies.filter((d) => d.status === 'replace').map((d) => `${d.name} → ${d.replacement}`),
+    removed: manifest.dependencies.filter((d) => d.status === 'remove').map((d) => `${d.name} (${d.note})`),
+    flags: report.filter((l) => l.startsWith('FLAG')),
+  });
   appendReport(cwd, 'Migrate (bare → Expo 58, deps)', report);
 }
 

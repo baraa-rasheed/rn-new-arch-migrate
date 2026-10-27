@@ -1,8 +1,14 @@
 import path from 'node:path';
-import { exists, readJSON, readText, sha, writeJSON, manifestPath, log } from './lib/fs-utils.mjs';
-import { scanAndroid, scanIOS, findLocalModules } from './lib/scan-native.mjs';
-import { classify } from './lib/deps.mjs';
+import { exists, readJSON, readText, sha, writeJSON, writeText, walk, manifestPath, stateDir, statePath, log } from './lib/fs-utils.mjs';
+import { scanAndroid, scanIOS, findLocalModules, filesToExtract, manualNative } from './lib/scan-native.mjs';
+import { classify, detectIssues } from './lib/deps.mjs';
+import { transform } from './lib/codemods.mjs';
+import { formatPlan } from './lib/print-plan.mjs';
 
+const SRC_IGNORE = ['node_modules', '.git', '.rn-new-arch', 'android', 'ios', 'plugins', 'build', 'dist', '.expo'];
+
+// READ-ONLY with respect to the project. The only writes are sidecars in .rn-new-arch/
+// (migration-manifest.json and plan.md). Never touches package.json, android/, ios/, or src.
 export function analyze(cwd) {
   const pkgPath = path.join(cwd, 'package.json');
   if (!exists(pkgPath)) throw new Error(`No package.json in ${cwd}`);
@@ -13,20 +19,40 @@ export function analyze(cwd) {
   const projectType = !all.expo ? 'bare-rn-cli' : (android || ios) ? 'expo-bare' : 'expo-managed';
   const configs = ['app.json', 'app.config.js', 'app.config.ts', 'babel.config.js', 'metro.config.js', 'tsconfig.json', 'react-native.config.js', 'index.js', 'index.ts', 'eas.json']
     .filter((f) => exists(path.join(cwd, f)));
+
+  // Dry-run codemods to list expected breaking-change fixes (nothing written).
+  const breakingExpected = [];
+  for (const f of walk(cwd, { exts: ['.js', '.jsx', '.ts', '.tsx'], ignore: SRC_IGNORE })) {
+    const src = readText(f); if (src === null) continue;
+    const { applied } = transform(src);
+    if (applied.length) breakingExpected.push({ file: path.relative(cwd, f), fixes: applied });
+  }
+  const native = { android, ios };
+  const localModules = findLocalModules(cwd, pkg);
+  const jsIssues = detectIssues(all);
+  const appJson = readJSON(path.join(cwd, 'app.json'));
   const manifest = {
     version: 1, createdAt: new Date().toISOString(), projectType,
     packageJson: { name: pkg.name, main: pkg.main || null, scripts: pkg.scripts || {}, hash: sha(readText(pkgPath)) },
     versions: { reactNative: all['react-native'] || null, react: all.react || null, expo: all.expo || null },
     configs,
-    native: { android, ios },
-    localModules: findLocalModules(cwd, pkg),
+    configSnapshot: { appJson: appJson || null },
+    native,
+    extractNative: filesToExtract(native),
+    localModules,
     dependencies: Object.entries(all).map(([n, v]) => classify(n, v)),
+    jsIssues,
+    breakingExpected,
+    manual: [...jsIssues.map((i) => i.note), ...manualNative(native, localModules)],
   };
   writeJSON(manifestPath(cwd), manifest);
-  const rep = manifest.dependencies.filter((d) => d.status === 'replace');
-  log(`manifest → ${path.relative(cwd, manifestPath(cwd))} (${projectType}, ${manifest.dependencies.length} deps, ${rep.length} to replace)`);
-  for (const d of rep) log(`  replace ${d.name} → ${d.replacement}${d.note ? ` (${d.note})` : ''}`);
+  writeJSON(statePath(cwd), {}); // fresh run state
+  writeText(path.join(stateDir(cwd), 'plan.md'), formatPlan(manifest, { markdown: true }));
+  log(`manifest → .rn-new-arch/migration-manifest.json, plan → .rn-new-arch/plan.md (${projectType}, ${manifest.dependencies.length} deps)`);
   return manifest;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) analyze(path.resolve(process.argv[2] || '.'));
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const m = analyze(path.resolve(process.argv[2] || '.'));
+  console.log(formatPlan(m));
+}
