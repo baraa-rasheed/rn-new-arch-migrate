@@ -38,3 +38,11 @@ export function appendReport(cwd, section, lines) {
   const prev = readText(p) || '# rn-new-arch-migrate report (Expo SDK 58)\n';
   writeText(p, prev + `\n## ${section}\n` + lines.map((l) => `- ${l}`).join('\n') + '\n');
 }
+
+// Structured run state used to build MIGRATION.md.
+export const statePath = (cwd) => path.join(stateDir(cwd), 'state.json');
+export function recordState(cwd, key, value) {
+  const st = readJSON(statePath(cwd), {});
+  st[key] = value; writeJSON(statePath(cwd), st);
+}
+export const readState = (cwd) => readJSON(statePath(cwd), {});
