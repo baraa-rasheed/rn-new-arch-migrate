@@ -34,6 +34,42 @@ export const IMPORT_SWAPS = {
 
 export function classify(name, from) {
   if (REMOVE.some((r) => r.test(name))) return { name, from, status: 'remove', replacement: null, note: 'CLI-only; superseded by expo' };
+  if (DEPRECATED_EXPO[name]) return { name, from, status: 'remove', replacement: null, note: `deprecated: ${DEPRECATED_EXPO[name]}` };
   if (REPLACEMENTS[name]) return { name, from, status: 'replace', replacement: REPLACEMENTS[name].to, note: REPLACEMENTS[name].note || null };
   return { name, from, status: 'ok', replacement: null, note: null };
+}
+
+// Deprecated Expo modules: removed from SDK; migrate to per-module APIs (manual JS rewrite).
+export const DEPRECATED_EXPO = {
+  'expo-permissions': 'Removed from Expo. Use per-module permission APIs (e.g. Camera.requestCameraPermissionsAsync, Location.requestForegroundPermissionsAsync, Notifications.requestPermissionsAsync, MediaLibrary.requestPermissionsAsync).',
+  'expo-app-loading': 'Removed. Use expo-splash-screen (preventAutoHideAsync/hideAsync).',
+  'expo-random': 'Removed. Use expo-crypto getRandomBytes/getRandomValues.',
+  'expo-firebase-analytics': 'Removed. Use @react-native-firebase/analytics.',
+  'expo-firebase-recaptcha': 'Removed. Use @react-native-firebase/auth.',
+  'expo-ads-admob': 'Removed. Use react-native-google-mobile-ads.',
+  'expo-ads-facebook': 'Removed. No Expo equivalent.',
+  'expo-facebook': 'Removed. Use react-native-fbsdk-next.',
+  'expo-google-sign-in': 'Removed. Use @react-native-google-signin/google-signin.',
+};
+
+// Native modules known to have no Expo equivalent / no New Architecture support → manual.
+export const NO_EXPO_EQUIVALENT = [
+  /^react-native-background-fetch$/, /^react-native-background-geolocation/, /^react-native-callkeep$/,
+  /^react-native-voip-push-notification$/, /^react-native-code-push$/, /^react-native-navigation$/,
+  /^react-native-interactable$/, /^react-native-sqlite-storage$/, /^realm$/, /^react-native-zip-archive$/,
+  /^react-native-bluetooth-/, /^react-native-ble-manager$/, /^react-native-nfc-manager$/, /^react-native-webrtc$/,
+];
+
+const major = (v) => { const m = String(v || '').match(/(\d+)/); return m ? Number(m[1]) : null; };
+
+// JS-layer issues detected from dependencies (read-only).
+export function detectIssues(all) {
+  const issues = [];
+  const nav = all['@react-navigation/native'] || all['react-navigation'];
+  if (all['react-navigation']) issues.push({ id: 'react-navigation-v4', pkg: 'react-navigation', severity: 'manual', note: `react-navigation ${all['react-navigation']} (v4 or older) is unsupported. Upgrade to @react-navigation/native v7 (static or dynamic API) or migrate to expo-router.` });
+  else if (nav && major(nav) !== null && major(nav) < 7) issues.push({ id: 'react-navigation-old', pkg: '@react-navigation/native', severity: 'manual', note: `@react-navigation/native ${nav} (v${major(nav)}) → upgrade to v7 (npx expo install @react-navigation/native @react-navigation/native-stack). v5→v7: navigate() no longer goes back to existing screens (use popTo), navigator id/props changes. Consider expo-router.` });
+  for (const n of Object.keys(all)) if (/^react-navigation-/.test(n)) issues.push({ id: 'react-navigation-v4-addon', pkg: n, severity: 'manual', note: `${n} is a v4 add-on; replace with the @react-navigation/* v7 equivalent.` });
+  for (const [n, note] of Object.entries(DEPRECATED_EXPO)) if (all[n]) issues.push({ id: 'deprecated-expo-module', pkg: n, severity: 'manual', note: `${n}: ${note}` });
+  for (const n of Object.keys(all)) if (NO_EXPO_EQUIVALENT.some((r) => r.test(n))) issues.push({ id: 'no-expo-equivalent', pkg: n, severity: 'manual', note: `${n}: native module with no Expo equivalent. Keep only if its latest release supports New Architecture + RN 0.88 (needs a config plugin or manual native setup), otherwise replace.` });
+  return issues;
 }
