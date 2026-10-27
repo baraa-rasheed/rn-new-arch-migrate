@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "createdAt": "2026-10-26T23:00:00.000Z",
+  "projectType": "bare-rn-cli",
+  "packageJson": { "name": "MyApp", "main": "index.js", "scripts": { "android": "react-native run-android", "ios": "react-native run-ios", "start": "react-native start" }, "hash": "3f2a…" },
+  "versions": { "reactNative": "0.72.6", "react": "18.2.0", "expo": null },
+  "configs": ["babel.config.js", "metro.config.js", "tsconfig.json"],
+  "native": {
+    "android": { "applicationId": "com.myapp", "permissions": ["android.permission.CAMERA"], "customFiles": ["android/app/src/main/java/com/myapp/MyNativeModule.java"] },
+    "ios": { "bundleIdentifier": "com.myapp", "infoPlistKeys": ["NSCameraUsageDescription"], "customFiles": ["ios/MyApp/MyNativeModule.m"] }
+  },
+  "localModules": ["modules/my-native-module"],
+  "dependencies": [
+    { "name": "react-native-fs", "from": "^2.20.0", "status": "replace", "replacement": "expo-file-system", "note": null },
+    { "name": "react-native-reanimated", "from": "^3.5.0", "status": "ok", "replacement": null, "note": null }
+  ]
+}
