@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "__NAME__",
+    "slug": "__SLUG__",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": { "bundleIdentifier": "__IOS_ID__", "supportsTablet": true, "infoPlist": {} },
+    "android": { "package": "__ANDROID_ID__", "permissions": [] },
+    "plugins": ["./plugins/restore-native-overlay.js"]
+  }
+}
